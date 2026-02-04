@@ -22,6 +22,7 @@ public class AuditService {
 	private final RuleEngine ruleEngine;
 	private final String awsRegion;
 	private Summary lastSummary;
+	private List<Recommendation> lastRecommendations = new ArrayList<>();
 
 	public AuditService(RuleEngine ruleEngine, @Value("${aws.region:us-east-1}") String awsRegion) {
 		this.ruleEngine = ruleEngine;
@@ -46,6 +47,7 @@ public class AuditService {
 			sortRecommendations(recommendations);
 			computeSummary(recommendations);
 			
+			this.lastRecommendations = recommendations;
 			return recommendations;
 		} catch (SdkException e) {
 			return new ArrayList<>();
@@ -78,5 +80,34 @@ public class AuditService {
 
 	public Summary getLastSummary() {
 		return lastSummary;
+	}
+
+	public String getRecommendationsAsCSV() {
+		List<Recommendation> recommendations = lastRecommendations.isEmpty() ? getRecommendations() : lastRecommendations;
+		StringBuilder csv = new StringBuilder();
+		
+		csv.append("ID,Resource ID,Resource Type,Region,Reason,Estimated Monthly Savings,Confidence Score\n");
+		
+		for (Recommendation rec : recommendations) {
+			csv.append(escapeCSV(rec.getId())).append(",");
+			csv.append(escapeCSV(rec.getResourceId())).append(",");
+			csv.append(escapeCSV(rec.getResourceType().toString())).append(",");
+			csv.append(escapeCSV(rec.getRegion())).append(",");
+			csv.append(escapeCSV(rec.getReason())).append(",");
+			csv.append(rec.getEstimatedMonthlySavings()).append(",");
+			csv.append(rec.getConfidenceScore()).append("\n");
+		}
+		
+		return csv.toString();
+	}
+
+	private String escapeCSV(String field) {
+		if (field == null) {
+			return "";
+		}
+		if (field.contains(",") || field.contains("\"") || field.contains("\n")) {
+			return "\"" + field.replace("\"", "\"\"") + "\"";
+		}
+		return field;
 	}
 }
