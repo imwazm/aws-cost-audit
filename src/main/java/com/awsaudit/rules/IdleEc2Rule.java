@@ -1,7 +1,7 @@
 package com.awsaudit.rules;
 
 import java.time.Instant;
-import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -36,43 +36,49 @@ public class IdleEc2Rule implements CostRule {
 	public List<Recommendation> evaluate(AuditContext context) {
 		List<Recommendation> recommendations = new ArrayList<>();
 
-		DescribeInstancesRequest describeRequest = DescribeInstancesRequest.builder()
-			.filters(builder -> builder
-				.name("instance-state-name")
-				.values("running")
-			)
-			.build();
+		String nextToken = null;
+		do {
+			DescribeInstancesRequest describeRequest = DescribeInstancesRequest.builder()
+				.filters(builder -> builder
+					.name("instance-state-name")
+					.values("running")
+				)
+				.nextToken(nextToken)
+				.build();
 
-		DescribeInstancesResponse describeResponse = ec2Client.describeInstances(describeRequest);
+			DescribeInstancesResponse describeResponse = ec2Client.describeInstances(describeRequest);
 
-		for (Reservation reservation : describeResponse.reservations()) {
-			for (Instance instance : reservation.instances()) {
-				double averageCpu = getAverageCpuUtilization(
-					instance.instanceId(),
-					context.getLookbackStartDate(),
-					context.getLookbackEndDate()
-				);
-
-				if (averageCpu < context.getCpuThreshold()) {
-					Recommendation recommendation = new Recommendation(
+			for (Reservation reservation : describeResponse.reservations()) {
+				for (Instance instance : reservation.instances()) {
+					double averageCpu = getAverageCpuUtilization(
 						instance.instanceId(),
-						ResourceType.EC2,
-						context.getRegion(),
-						"Instance has low CPU utilization (" + String.format("%.2f", averageCpu) + "%) over the past 7 days",
-						10.0,
-						0.95
+						context.getLookbackStartDate(),
+						context.getLookbackEndDate()
 					);
-					recommendations.add(recommendation);
+
+					if (averageCpu < context.getCpuThreshold()) {
+						Recommendation recommendation = new Recommendation(
+							instance.instanceId(),
+							ResourceType.EC2,
+							context.getRegion(),
+							"Instance has low CPU utilization (" + String.format("%.2f", averageCpu) + "%) over the past 7 days",
+							10.0,
+							0.95
+						);
+						recommendations.add(recommendation);
+					}
 				}
 			}
-		}
+
+			nextToken = describeResponse.nextToken();
+		} while (nextToken != null);
 
 		return recommendations;
 	}
 
 	private double getAverageCpuUtilization(String instanceId, java.time.LocalDate startDate, java.time.LocalDate endDate) {
-		Instant startInstant = startDate.atStartOfDay(ZoneId.systemDefault()).toInstant();
-		Instant endInstant = endDate.atStartOfDay(ZoneId.systemDefault()).toInstant();
+		Instant startInstant = startDate.atStartOfDay(ZoneOffset.UTC).toInstant();
+		Instant endInstant = endDate.atStartOfDay(ZoneOffset.UTC).toInstant();
 
 		GetMetricStatisticsRequest metricsRequest = GetMetricStatisticsRequest.builder()
 			.namespace("AWS/EC2")
