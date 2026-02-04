@@ -1,24 +1,26 @@
 package com.awsaudit.api;
 
+import java.util.List;
+
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import software.amazon.awssdk.services.costexplorer.model.GetCostAndUsageResponse;
 
-import com.awsaudit.service.CostExplorerService;
+import com.awsaudit.domain.Recommendation;
+import com.awsaudit.service.AuditService;
 
 @RestController
 @RequestMapping("/audit")
 public class AuditController {
 
-	private final CostExplorerService costExplorerService;
+	private final AuditService auditService;
 
-	public AuditController(CostExplorerService costExplorerService) {
-		this.costExplorerService = costExplorerService;
+	public AuditController(AuditService auditService) {
+		this.auditService = auditService;
 	}
 
-	@GetMapping("/cost-summary")
-	public GetCostAndUsageResponse getCostSummary() {
-		return costExplorerService.fetchLast30DaysCosts();
+	@GetMapping("/recommendations")
+	public List<Recommendation> getRecommendations() {
+		return auditService.getRecommendations();
 	}
 }

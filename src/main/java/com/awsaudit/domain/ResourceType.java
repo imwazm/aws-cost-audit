@@ -1,5 +1,6 @@
 package com.awsaudit.domain;
 
 public enum ResourceType {
-	EC2
+	EC2,
+	EBS
 }
